@@ -5,6 +5,7 @@ import uselect
 import machine
 import credentials
 
+hostname = credentials.HOSTNAME
 ssid = credentials.SSID
 password = credentials.PASSWORD
 
@@ -15,7 +16,7 @@ def connect_wifi():
     if not wlan.isconnected():
         print("Connecting to WiFi...")
         wlan.connect(ssid, password)
-        wlan.config(hostname='rpipw-01-jm')
+        wlan.config(hostname=hostname)
 
         timeout = 10
         start = time.time()
