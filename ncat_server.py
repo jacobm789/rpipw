@@ -1,4 +1,5 @@
 import network
+import struct
 import time
 import socket
 import uselect
@@ -35,18 +36,19 @@ connect_wifi()
 led = machine.Pin("LED", machine.Pin.OUT)
 led2 = machine.Pin(16, machine.Pin.OUT)
 
-history = []
-history_index = -1
-cmd_buffer = ""
-cursor_pos = 0
 
-commands = ["led on", "led off", "led2 on", "led2 off", "status", "reboot"]
-tab_index = 0
+commands = ["led on", "led off", "led2 on", "led2 off", "status", "exit", "reboot"]
 
 def handle_input(conn):
-    global history, history_index, cmd_buffer, cursor_pos, tab_index
+    cmd_buffer = ""
 
-    conn.sendall(b"Welcome to Pico W Shell!\n>>> ")
+    conn.sendall(b"Welcome to Pico W Server!\n")
+    status = "ON" if led.value() else "OFF"
+    status2 = "ON" if led2.value() else "OFF"
+    conn.sendall(f"LED is currently {status}\n".encode())
+    conn.sendall(f"LED2 is currently {status2}\n".encode())
+    conn.sendall(f'Available commands are "{'", "'.join(str(i) for i in commands)}", and "?"\n')
+    conn.sendall(f'Use ctrl+c to exit.\n>>> ')
 
     start_time = time.time()
 
@@ -70,42 +72,22 @@ def handle_input(conn):
         char = data.decode()
 
         if char == "\n":
-            conn.sendall(b"\n")
             if cmd_buffer.strip():
-                history.append(cmd_buffer)
-                history_index = len(history)
                 process_command(conn, cmd_buffer.strip())
             cmd_buffer = ""
-            cursor_pos = 0
-            tab_index = 0
             conn.sendall(b">>> ")
 
-        elif char == "\t":
-            matches = [cmd for cmd in commands if cmd.startswith(cmd_buffer.upper())]
-            if matches:
-                cmd_buffer = matches[tab_index]
-                cursor_pos = len(cmd_buffer)
-                tab_index = (tab_index + 1) % len(matches)
-                conn.sendall(b"\n" + b"\n".join(cmd.encode() for cmd in matches) + b"\n>>> " + cmd_buffer.encode() + b" ")
-
-        elif char == "\x7f":
-            if cursor_pos > 0:
-                cmd_buffer = cmd_buffer[:cursor_pos - 1] + cmd_buffer[cursor_pos:]
-                cursor_pos -= 1
-                tab_index = 0
-                conn.sendall(b"\b \b")
-
         else:
-            cmd_buffer = cmd_buffer[:cursor_pos] + char + cmd_buffer[cursor_pos:]
-            cursor_pos += 1
-            tab_index = 0
-            conn.sendall(char.encode())
+            cmd_buffer += char
 
     conn.close()
 
 def process_command(conn, cmd):
     """Executes the given command."""
-    if cmd == "led on":
+    if cmd == "?":
+        conn.sendall(f'Available commands are "{'", "'.join(str(i) for i in commands)}", and "?"\n')
+        conn.sendall(f'Use ctrl+c to exit.\n')
+    elif cmd == "led on":
         led.value(1)
         conn.sendall(b"LED is now ON\n")
     elif cmd == "led off":
