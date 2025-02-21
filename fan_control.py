@@ -37,7 +37,7 @@ led = machine.Pin("LED", machine.Pin.OUT)
 fans = machine.Pin(16, machine.Pin.OUT)
 
 
-commands = ["led on", "led off", "fans on", "fans off", "status", "exit", "reboot"]
+commands = ["led on", "led off", "fans on", "fans off", "status", "reboot"]
 
 def handle_input(conn):
     cmd_buffer = ""
