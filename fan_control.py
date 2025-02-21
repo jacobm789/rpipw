@@ -1,5 +1,4 @@
 import network
-import struct
 import time
 import socket
 import uselect

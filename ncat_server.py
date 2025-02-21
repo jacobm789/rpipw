@@ -1,5 +1,4 @@
 import network
-import struct
 import time
 import socket
 import uselect
@@ -37,7 +36,7 @@ led = machine.Pin("LED", machine.Pin.OUT)
 led2 = machine.Pin(16, machine.Pin.OUT)
 
 
-commands = ["led on", "led off", "led2 on", "led2 off", "status", "exit", "reboot"]
+commands = ["led on", "led off", "led2 on", "led2 off", "status", "reboot"]
 
 def handle_input(conn):
     cmd_buffer = ""
