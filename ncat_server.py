@@ -1,5 +1,6 @@
 import network
 import time
+import ntptime
 import socket
 import uselect
 import machine
@@ -14,15 +15,14 @@ wlan.active(True)
 
 def connect_wifi():
     if not wlan.isconnected():
-        print("Connecting to WiFi...")
         wlan.connect(ssid, password)
         wlan.config(hostname=hostname)
 
+        ntptime.settime()
         timeout = 10
         start = time.time()
         while not wlan.isconnected():
             if time.time() - start > timeout:
-                print("WiFi connection failed. Retrying...")
                 return False
             time.sleep(1)
 
@@ -47,6 +47,7 @@ def handle_input(conn):
     conn.sendall(f"LED is currently {status}\n".encode())
     conn.sendall(f"LED2 is currently {status2}\n".encode())
     conn.sendall(f'Available commands are "{'", "'.join(str(i) for i in commands)}", and "?"\n')
+    conn.sendall(f"The time is {time.localtime()[3]}:{time.localtime()[4]}\n")
     conn.sendall(f'Use ctrl+c to exit.\n>>> ')
 
     start_time = time.time()
@@ -103,6 +104,7 @@ def process_command(conn, cmd):
         status2 = "ON" if led2.value() else "OFF"
         conn.sendall(f"LED is currently {status}\n".encode())
         conn.sendall(f"LED2 is currently {status2}\n".encode())
+        conn.sendall(f"The time is {time.localtime()[3]}:{time.localtime()[4]}\n")
     elif cmd == "reboot":
         conn.sendall(b"Rebooting...\n")
         machine.reset()
@@ -115,17 +117,18 @@ def shell_server():
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.bind(addr)
     s.listen(1)
-    print(f"Listening on {addr}")
+
+    start = time.time()
 
     while True:
+        if time.time() - start > 7*24*60*60:
+            ntptime.settime()
         if not wlan.isconnected():
-            print("WiFi lost. Reconnecting...")
             connect_wifi()
 
         try:
             s.settimeout(10)
             conn, addr = s.accept()
-            print(f"Connected by {addr}")
             handle_input(conn)
         except OSError:
             pass
