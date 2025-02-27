@@ -18,7 +18,6 @@ def connect_wifi():
         wlan.connect(ssid, password)
         wlan.config(hostname=hostname)
 
-        ntptime.settime()
         timeout = 10
         start = time.time()
         while not wlan.isconnected():
@@ -27,8 +26,21 @@ def connect_wifi():
             time.sleep(1)
 
         print("Connected! IP:", wlan.ifconfig()[0])
+        get_time()
         return True
     return True
+
+def get_time():
+    ntptime.settime()
+    rtc = machine.RTC()
+    utc_time = rtc.datetime()
+    timezone_offset_hours = -8
+    timezone_offset_seconds = timezone_offset_hours * 3600
+    year, month, day, weekday, hour, minute, second, _ = utc_time
+    seconds = time.mktime((year, month, day, hour, minute, second, weekday, 0))
+    local_seconds = seconds + timezone_offset_seconds
+    local_time = time.localtime(local_seconds)
+    rtc.datetime((local_time[0], local_time[1], local_time[2], local_time[6], local_time[3], local_time[4], local_time[5], 0))
 
 connect_wifi()
 
@@ -47,7 +59,7 @@ def handle_input(conn):
     conn.sendall(f"LED is currently {status}\n".encode())
     conn.sendall(f"Fans are currently {status2}\n".encode())
     conn.sendall(f'Available commands are "{'", "'.join(str(i) for i in commands)}", and "?"\n')
-    conn.sendall(f"The time is {time.localtime()[3]}:{time.localtime()[4]}\n")
+    conn.sendall(f"The time is {time.localtime()[3]}:{time.localtime()[4]}:{time.localtime()[5]}\n")
     conn.sendall(f'Use ctrl+c to exit.\n>>> ')
 
     start_time = time.time()
@@ -104,7 +116,7 @@ def process_command(conn, cmd):
         status2 = "ON" if fans.value() else "OFF"
         conn.sendall(f"LED is currently {status}\n".encode())
         conn.sendall(f"Fans are currently {status2}\n".encode())
-        conn.sendall(f"The time is {time.localtime()[3]}:{time.localtime()[4]}\n")
+        conn.sendall(f"The time is {time.localtime()[3]}:{time.localtime()[4]}:{time.localtime()[5]}\n")
     elif cmd == "reboot":
         conn.sendall(b"Rebooting...\n")
         machine.reset()
@@ -112,22 +124,24 @@ def process_command(conn, cmd):
         conn.sendall(b"Unknown command\n")
 
 def shell_server():
-    """Starts the Pico W shell server."""
     addr = ("0.0.0.0", 23)
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.bind(addr)
     s.listen(1)
-    print(f"Listening on {addr}")
 
     start = time.time()
 
     while True:
         if time.time() - start > 7*24*60*60:
-            ntptime.settime()
+            get_time()
         if not wlan.isconnected():
             connect_wifi()
 
         try:
+            if time.localtime()[3:5] == (6, 15):
+                fans.value(1)
+            elif time.localtime()[3:5] == (16, 00):
+                fans.value(0)
             s.settimeout(10)
             conn, addr = s.accept()
             handle_input(conn)
