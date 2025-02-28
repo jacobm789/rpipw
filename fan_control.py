@@ -27,6 +27,16 @@ def get_time():
     local_time = time.localtime(local_seconds)
     rtc.datetime((local_time[0], local_time[1], local_time[2], local_time[6], local_time[3], local_time[4], local_time[5], 0))
 
+def get_temp(thermistor):
+    pass
+
+def toggle_schedule():
+    pass
+
+def toggle_thermostat_mode():
+    """Runs fans only when too hot upstairs and too cold downstairs"""
+    pass
+
 def connect_wifi():
     if not wlan.isconnected():
         wlan.connect(ssid, password)
