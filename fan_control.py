@@ -119,6 +119,7 @@ def shell_server():
     while True:
         if time.time() - start > 7*24*60*60:
             get_time()
+            start = time.time()
         if not wlan.isconnected():
             connect_wifi()
 
