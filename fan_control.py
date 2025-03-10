@@ -57,7 +57,7 @@ def get_time():
     ntptime.settime()
     rtc = machine.RTC()
     utc_time = rtc.datetime()
-    timezone_offset_hours = -8
+    timezone_offset_hours = -7
     timezone_offset_seconds = timezone_offset_hours * 3600
     year, month, day, weekday, hour, minute, second, _ = utc_time
     seconds = time.mktime((year, month, day, hour, minute, second, weekday, 0))
