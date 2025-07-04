@@ -8,6 +8,7 @@ import credentials
 from ds18x20 import DS18X20
 from onewire import OneWire
 import uasyncio as asyncio
+import ujson
 
 hostname = credentials.HOSTNAME
 ssid = credentials.SSID
@@ -78,11 +79,35 @@ def toggle_schedule(session):
     schedule = (schedule+1) % 2
     session.sendall(f"Schedule is now {"enabled" if schedule else "disabled"}\n")
 
+def save_schedule_state(session, enabled):
+    try:
+        with open('settings.json', 'w') as f:
+            ujson.dump({"schedule_enabled": enabled}, f)
+        session.sendall(f"Schedule state saved: {"enabled" if enabled else "disabled"}\n")
+    except OSError as e:
+        session.sendall(f"Error saving schedule state: {e}\n")
+
+def load_schedule_state(session):
+    try:
+        with open('schedule_state.json', 'r') as f:
+            data = ujson.load(f)
+            return data.get("schedule_enabled", False)
+    except (OSError, ValueError) as e:
+        session.sendall(f"Error loading schedule state, or file not found/corrupt: {e}\n")
+        return False
+
 def toggle_thermostat_mode(session):
     """Runs fans only when too hot upstairs and too cold downstairs"""
     global schedule, thermostat_mode
     thermostat_mode = (thermostat_mode+1) % 2
     session.sendall(f"Thermostat mode is now {"enabled" if thermostat_mode else "disabled"}\n")
+
+def run_thermostat_mode():
+    global schedule_running
+    if schedule_running:
+        return 0
+    else:
+        pass
 
 def run_schedule():
     global schedule_running
@@ -92,13 +117,6 @@ def run_schedule():
     elif time.localtime()[6] in range(5) and time.localtime()[3:5] == (16, 00):
         fans.value(0)
         schedule_running = 0
-
-def run_thermostat_mode():
-    global schedule_running
-    if schedule_running:
-        return 0
-    else:
-        pass
 
 def connect_wifi():
     if not wlan.isconnected():
@@ -141,7 +159,8 @@ def process_command(session, cmd):
         session.sendall(b"Fans are now OFF\n")
     elif cmd == "toggle schedule":
         toggle_schedule(session)
-    elif cmd == "toggle thermostat mode":
+        #TODO: write to settings.json
+    elif cmd == "toggle thermostat":
         toggle_thermostat_mode(session)
         session.sendall(b"Warning: future feature.\n")
     elif cmd == "status":
@@ -150,7 +169,7 @@ def process_command(session, cmd):
         session.sendall(b"Rebooting...\n")
         machine.reset()
     elif cmd == "?":
-        session.sendall(b'Available commands are "fans on", "fans off", "toggle schedule", "toggle thermostat mode", "status", "reboot", and "?"\n')
+        session.sendall(b'Available commands are "fans on", "fans off", "toggle schedule", "toggle thermostat", "status", "reboot", and "?"\n')
         session.sendall(b'Use ctrl+c to exit.\n')
     else:
         session.sendall(b"Unknown command\n")
@@ -200,6 +219,7 @@ def shell_server():
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.bind(addr)
     s.listen(1)
+    #TODO: somewhere around here load settings.json
 
     start = time.time()
 
