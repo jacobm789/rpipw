@@ -8,7 +8,6 @@ import credentials
 from ds18x20 import DS18X20
 from onewire import OneWire
 import uasyncio as asyncio
-# TODO: Make temp reading (and everything else working around that) asynchronous
 
 hostname = credentials.HOSTNAME
 ssid = credentials.SSID
@@ -27,7 +26,7 @@ months = ("January", "February", "March", "April", "May", "June", "July", "Augus
 #TODO: add date to status printout
 
 class DS18B20:
-    def __init__(self, power_pin, data_pin):
+    def __init__(self, session, power_pin, data_pin):
         self.power = machine.Pin(power_pin, machine.Pin.OUT)
         self.power.value(1)
 
@@ -37,13 +36,19 @@ class DS18B20:
         self.ds = DS18X20(OneWire(self.dat))
 
         self.roms = self.ds.scan()
-        if not self.roms:
-            # raise RuntimeError("No DS18B20 devices found")
-            pass
-        # TODO: Handle No thermistor to avoid hangups
-        #WARNING: don't use, currently breaks when no thermistor connected
 
-    def read_temps(self):
+    def read_temps(self, session):
+        """
+        Currently this is ran every time the current temp is printed
+        This means every time the current temp is printed everything stops for 750 ms
+        TODO:
+            * Make read_temps and other necessarily asynchronous functions asynchronous
+            * read_temps periodically and store the value
+            * stored value is instantly printable
+        """
+        if not self.roms:
+            session.sendall(f"No DS18B20 devices found\n")
+            return None
         self.ds.convert_temp()
 
         time.sleep_ms(750)
@@ -114,14 +119,17 @@ def connect_wifi():
 
 def status(session):
     fans_status = "ON" if fans.value() else "OFF"
-    # upstairs_temp = DS18B20(power_pin=14, data_pin=15)
+    upstairs_temp = DS18B20(session, power_pin=14, data_pin=15)
     session.sendall(f"Fans are currently {fans_status}\n".encode())
     session.sendall(f"Schedule is currently {"enabled" if schedule else "disabled"}\n")
     session.sendall(f"Thermostat mode is currently {"enabled" if thermostat_mode else "disabled"}\n")
     if (schedule, thermostat_mode) == (1, 1):
         session.sendall(b"Thermostat mode inactive during scheduled fan time.\n")
     session.sendall(f"The time is {time.localtime()[3]}:{time.localtime()[4]:02}:{time.localtime()[5]:02}\n")
-    # session.sendall(f"The upstairs temperature is {upstairs_temp.read_temps()}\n")
+    if upstairs_temp.read_temps(session) is None:
+        pass
+    else:
+        session.sendall(f"The upstairs temperature is {upstairs_temp.read_temps(session)}\n")
 
 def process_command(session, cmd):
     """Executes the given command."""
@@ -150,7 +158,7 @@ def process_command(session, cmd):
 def handle_input(session):
     cmd_buffer = ""
 
-    session.sendall(b"Welcome to Pico W Server!\n")
+    session.sendall(b"\nWelcome to Pico W Server!\n\n")
     status(session)
     process_command(session, "?")
     session.sendall(b">>> ")
