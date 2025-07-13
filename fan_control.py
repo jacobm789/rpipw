@@ -22,6 +22,7 @@ fans = machine.Pin(16, machine.Pin.OUT)
 schedule = 1
 fans_running = 0
 thermostat_mode = 1
+dst_enabled = True
 days_of_the_week = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
 months = ("January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December")
 #TODO: add date to status printout
@@ -59,17 +60,47 @@ class DS18B20:
 
         return temp_f
 
+def toggle_auto_dst():
+    global dst_enabled
+    if dst_enabled:
+        dst_enabled = False
+    else:
+        dst_enabled = True
+    get_time()
+
+def is_dst(dst_enabled, local_time_tuple):
+    if not dst_enabled:
+        return 0
+    else:
+        year, month, day, _, _, _, _, _ = local_time_tuple
+        now = time.mktime((year, month, day, 0, 0, 0, 0, 0))
+
+        # Find second Sunday in March at midnight
+        t = time.mktime((year, 3, 1, 0, 0, 0, 0, 0))
+        while time.localtime(t)[6] != 6:  # First Sunday
+            t += 86400
+        t += 7 * 86400  # Second Sunday
+        dst_start = t
+
+        # Find first Sunday in November at midnight
+        t = time.mktime((year, 11, 1, 0, 0, 0, 0, 0))
+        while time.localtime(t)[6] != 6:  # First Sunday
+            t += 86400
+        dst_end = t
+
+        return 1 if dst_start <= now < dst_end else 0
+
 def get_time():
     ntptime.settime()
     rtc = machine.RTC()
     utc_time = rtc.datetime()
-    timezone_offset_hours = -7
+    timezone_offset_hours = -8
     timezone_offset_seconds = timezone_offset_hours * 3600
     year, month, day, weekday, hour, minute, second, _ = utc_time
     seconds = time.mktime((year, month, day, hour, minute, second, weekday, 0))
     local_seconds = seconds + timezone_offset_seconds
     local_time = time.localtime(local_seconds)
-    rtc.datetime((local_time[0], local_time[1], local_time[2], local_time[6], local_time[3], local_time[4], local_time[5], 0))
+    rtc.datetime((local_time[0], local_time[1], local_time[2], local_time[6], local_time[3] + is_dst(dst_enabled, local_time), local_time[4], local_time[5], 0))
 
 def get_temp(thermistor):
     pass
@@ -170,7 +201,12 @@ def process_command(session, cmd):
         machine.reset()
     elif cmd == "?":
         session.sendall(b'Available commands are "fans on", "fans off", "toggle schedule", "toggle thermostat", "status", "reboot", and "?"\n')
+        session.sendall(b'Special commands:\n    "toggle auto dst" to toggle automatic daylight savings time if you don\'t use it\n')
         session.sendall(b'Use ctrl+c to exit.\n')
+    elif cmd == "toggle auto dst":
+        toggle_auto_dst()
+        global dst_enabled
+        session.sendall(f'Automatic Daylight Savings is {"Enabled" if dst_enabled else "Disabled"}\n')
     else:
         session.sendall(b"Unknown command\n")
 
@@ -224,7 +260,8 @@ def shell_server():
     start = time.time()
 
     while True:
-        if time.time() - start > 7*24*60*60:
+        # reset time at 02:00 on Sundays
+        if (time.localtime()[6], time.localtime()[3], time.localtime()[4]) == (6, 02, 00) and time.time() - start > 2*60*60: # for now this gets skipped if someone is connected to the server at 02:00
             get_time()
             start = time.time()
         if not wlan.isconnected():
