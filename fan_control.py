@@ -20,7 +20,7 @@ wlan.active(True)
 fans = machine.Pin(16, machine.Pin.OUT)
 
 schedule = 1
-schedule_running = 0
+fans_running = 0
 thermostat_mode = 1
 days_of_the_week = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
 months = ("January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December")
@@ -96,6 +96,15 @@ def load_schedule_state(session):
         session.sendall(f"Error loading schedule state, or file not found/corrupt: {e}\n")
         return False
 
+def run_schedule():
+    global fans_running
+    if time.localtime()[6] in range(5) and time.localtime()[3:5] == (6, 15):
+        fans.value(1)
+        fans_running = 1
+    elif time.localtime()[6] in range(5) and time.localtime()[3:5] == (16, 00):
+        fans.value(0)
+        fans_running = 0
+
 def toggle_thermostat_mode(session):
     """Runs fans only when too hot upstairs and too cold downstairs"""
     global schedule, thermostat_mode
@@ -103,20 +112,11 @@ def toggle_thermostat_mode(session):
     session.sendall(f"Thermostat mode is now {"enabled" if thermostat_mode else "disabled"}\n")
 
 def run_thermostat_mode():
-    global schedule_running
-    if schedule_running:
+    global fans_running
+    if fans_running:
         return 0
     else:
         pass
-
-def run_schedule():
-    global schedule_running
-    if time.localtime()[6] in range(5) and time.localtime()[3:5] == (6, 15):
-        fans.value(1)
-        schedule_running = 1
-    elif time.localtime()[6] in range(5) and time.localtime()[3:5] == (16, 00):
-        fans.value(0)
-        schedule_running = 0
 
 def connect_wifi():
     if not wlan.isconnected():
